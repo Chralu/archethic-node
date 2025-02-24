@@ -5,7 +5,7 @@ defmodule Archethic.P2P.P2PView do
     :avg_availability
   ]
 
-  @type t :: %{
+  @type t :: %__MODULE__{
           geo_patch: binary(),
           available?: boolean(),
           avg_availability: float()
@@ -34,6 +34,8 @@ defmodule Archethic.P2P.P2PView do
     |> read_nodes()
     |> deserialize()
   end
+
+  # def get_p2p_view(timestamp, node_index_at_timestamp(first_public_key, timestamp))
 
   @spec update_node(
           changes :: Keyword.t(),
@@ -102,6 +104,10 @@ defmodule Archethic.P2P.P2PView do
     )
   end
 
+  defp should_apply_change?({_, {nil, _}}, _) do
+    false
+  end
+
   defp should_apply_change?({key, {_, changed?}}, bin_node) do
     {_, previously_changed?} = get_bin_node_property(bin_node, key)
     changed? == true || previously_changed? != 1
@@ -110,7 +116,12 @@ defmodule Archethic.P2P.P2PView do
   defp do_add_node(_, :"$end_of_table", _), do: :ok
 
   defp do_add_node(node_bin, unix_timestamp, index_at_timestamp) do
-    node_index = index_at_timestamp.(DateTime.from_unix!(unix_timestamp))
+    timestamp = DateTime.from_unix!(unix_timestamp)
+    node_index = index_at_timestamp.(timestamp)
+
+    Logger.debug("Adding node to p2pView",
+      date: timestamp
+    )
 
     read_nodes(unix_timestamp)
     |> insert_bin_node(node_index, node_bin)
@@ -150,19 +161,19 @@ defmodule Archethic.P2P.P2PView do
 
   @bin_node_byte_size 8
 
-  defp serialize(p2p_view, are_new_nodes?, acc \\ <<>>)
+  # defp serialize(p2p_view, are_new_nodes?, acc \\ <<>>)
 
-  defp serialize([], _, acc), do: acc
+  # defp serialize([], _, acc), do: acc
 
-  defp serialize([node | rest], are_new_nodes?, acc) do
-    node_bin = serialize_node(node, are_new_nodes?)
+  # defp serialize([node | rest], are_new_nodes?, acc) do
+  #   node_bin = serialize_node(node, are_new_nodes?)
 
-    serialize(
-      rest,
-      are_new_nodes?,
-      acc <> node_bin
-    )
-  end
+  #   serialize(
+  #     rest,
+  #     are_new_nodes?,
+  #     acc <> node_bin
+  #   )
+  # end
 
   defp serialize_node(
          %__MODULE__{
@@ -252,7 +263,7 @@ defmodule Archethic.P2P.P2PView do
 
   defp get_bin_node_property(
          <<_::32, available_changed?::8, available?::8, _::binary>>,
-         :available
+         :available?
        ) do
     {<<available?::8>>, available_changed?}
   end
@@ -280,7 +291,7 @@ defmodule Archethic.P2P.P2PView do
          bin_node,
          changes
        ) do
-    [:geo_patch, :available, :avg_availability]
+    [:geo_patch, :available?, :avg_availability]
     |> Enum.reduce(<<>>, fn key, acc ->
       acc <>
         case changes[key] do
